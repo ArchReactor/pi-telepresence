@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+  <title>AR Telebot</title>
+  <link rel="stylesheet" type="text/css" href="css/style.css?_=1">
+
+  <script src="jq/jquery-2.1.1.min.js"></script>
+  <script src="jq/jquery.json-2.4.0.min.js"></script>
+  <script src="jq/jquery.websocket-0.0.4.js"></script>
+  <script src="node_modules/nipplejs/dist/nipplejs.min.js"></script>
+  <script src='/socket.io/socket.io.js'></script>
+  <script src='js/adapter.js?_=2'></script>
+  <script src='js/main.js?_=3'></script>
+  
+  <script>
+	var oldpos; //track last send possition so we can slow down the update rate
+	var changeval = 5; //how much the joystick value needs to change before sending
+	$(document).ready(function () {
+        init();
+
+        var sourcepos;
+        var joystick = nipplejs.create({
+            zone: document.getElementById('joystick'),
+            mode: 'static',
+            position: {left: '50%', top: '50%'},
+            color: 'orange',
+            size: 256
+        });
+        joystick.on('start', function(evt, data) {
+                    sourcepos = data['position'];
+					oldpos = JSON.parse(JSON.stringify(sourcepos));
+                }).on('end', function (evt, data) {
+                    socket.emit('robot', {cmd:'drv', sp: 0, dr: 0 });
+                }).on('move', function (evt, data) {
+                    var newpos = {
+                        x: (sourcepos.x - data['position'].x)/2,
+                        y: (sourcepos.y - data['position'].y)/2
+                    };
+                    //make a dead zone
+                    if(newpos.x > -6 && newpos.x < 6) newpos.x =0;
+                    if(newpos.y > -6 && newpos.y < 6) newpos.y =0;
+                    if(isChangedEnough(newpos, oldpos)) {
+						socket.emit('robot', {cmd:'drv', sp: newpos.y, dr: newpos.x });
+						oldpos = JSON.parse(JSON.stringify(newpos));
+					}
+                });
+
+        $(".button-expand").on("click", () => {
+            $("body").addClass("video-expand");
+        });
+
+        $(".button-close").on("click", () => {
+            $("body").removeClass("video-expand");
+        });
+
+        if(getUrlParameter("host") != "") {
+          $("body").addClass("video-expand");
+        }
+    });
+
+  function isChangedEnough(a, b) {
+		if(Math.abs(a.x - b.x) > changeval || Math.abs(a.y - b.y) > changeval) {
+			return true; //chanegd enough
+		} else if(a.x == 0 && ay == 0) {
+			return true; //always send a "center"
+		} else {
+			return false;
+		}
+	}
+
+  function getUrlParameter(name) {
+    name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+    var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+    var results = regex.exec(location.search);
+    return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+  }
+
+	</script>
+</head>
+
+<body>
+    
+
+<main class="canvas">
+  <div class="container container--clear">
+    <div class="main__content" id='videos'>
+      <div class="embed__video">
+        <video id='remoteVideo' autoplay playsinline></video>
+        <button class="button button-close">Close</button>
+      </div>
+    </div>
+    <div class="main__sidebar">
+      <div id="joystick"></div>
+      <video class="video--local" id='localVideo' autoplay muted playsinline></video>
+      <button class="button button-expand">Full Screen</button>
+    </div>
+  </div>
+</div>
+</main>
+</body>
+
+</html>
